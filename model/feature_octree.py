@@ -24,20 +24,20 @@ class FeatureOctree(nn.Module):
         super().__init__()
 
         # [0 1 2 3 ... max_level-1 max_level], 0 level is the root, which have 8 corners.
-        self.max_level = config.tree_level_world # 作者默认是 12 级
+        self.max_level = config.tree_level_world # 作者默认是 12 + 1 级
         # the number of levels with feature (begin from bottom)
         self.leaf_vox_size = config.leaf_vox_size 
         self.featured_level_num = config.tree_level_feat 
         self.free_level_num = self.max_level - self.featured_level_num + 1
         self.feature_dim = config.feature_dim
-        self.feature_std = config.feature_std
-        self.polynomial_interpolation = config.poly_int_on
+        self.feature_std = config.feature_std # TODO 特征的标准差是什么？
+        self.polynomial_interpolation = config.poly_int_on # TODO 这是啥，论文中好像没提呀，怎么还有多项式差值，不是只有一个三线性插值吗？难道说的就是这个？
         self.device = config.device
 
         # Initialize the look up tables 
         self.corners_lookup_tables = [] # from corner morton to corner index (top-down)
         self.nodes_lookup_tables = []   # from nodes morton to corner index (top-down)
-        # Initialize the look up table for each level, each is a dictionary
+        # Initialize the look up table for each level, each is a dictionary!
         for l in range(self.max_level+1):
             self.corners_lookup_tables.append({})
             self.nodes_lookup_tables.append({})

@@ -141,7 +141,7 @@ class SHINEConfig:
         
         self.sigma_sigmoid_m: float = 0.1
         self.sigma_scale_constant: float = 0.0 # scale factor adding to the constant sigma value (linear with the distance) [deprecated]
-        self.logistic_gaussian_ratio: float = 0.55
+        self.logistic_gaussian_ratio: float = 0.55 # TODO 这个是干什么的呢？
         
         self.predict_sdf: bool = False
         self.neus_loss_on: bool = False  # use the unbiased and occlusion-aware weights for differentiable rendering as introduced in NEUS
@@ -332,6 +332,9 @@ class SHINEConfig:
         
 
         # vis and eval
+        self.o3d_vis_on = config_args["eval"][
+            "o3d_vis_on"
+        ] # 
         self.wandb_vis_on = config_args["eval"][
             "wandb_vis_on"
         ]  # use weight and bias to monitor the experiment or not

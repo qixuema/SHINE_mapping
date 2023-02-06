@@ -46,8 +46,8 @@ class LiDARDataset(Dataset):
         self.poses_ref = self.poses_w  # initialize size
 
         # point cloud files
-        self.pc_filenames = natsorted(os.listdir(config.pc_path)) # sort files as 1, 2,… 9, 10 not 1, 10, 100 with natsort
-        self.total_pc_count = len(self.pc_filenames)
+        self.pc_filenames = natsorted(os.listdir(config.pc_path)) # sort files as 1, 2,… 9, 10 not 1, 10, 100 with natsort, 有意思，我得记录一下
+        self.total_frame_count = len(self.pc_filenames)
 
         # feature octree
         self.octree = octree
@@ -59,7 +59,7 @@ class LiDARDataset(Dataset):
 
         # initialize the data sampler
         self.sampler = dataSampler(config)
-        self.ray_sample_count = config.surface_sample_n + config.free_sample_n
+        self.ray_sample_count = config.surface_sample_n + config.free_sample_n # Ns + Nf in paper, 3 + 3 = 6
 
         # merged downsampled point cloud
         self.map_down_pc = o3d.geometry.PointCloud()
@@ -70,7 +70,7 @@ class LiDARDataset(Dataset):
         self.used_pc_count = 0
         begin_flag = False
         self.begin_pose_inv = np.eye(4)
-        for frame_id in range(self.total_pc_count):
+        for frame_id in range(self.total_frame_count):
             if (
                 frame_id < config.begin_frame
                 or frame_id > config.end_frame
@@ -83,7 +83,7 @@ class LiDARDataset(Dataset):
                     self.begin_pose_inv = inv(self.poses_w[frame_id])  # T_rw
                 else:
                     # just a random number to avoid octree boudnary marching cubes problems on synthetic dataset such as MaiCity(TO FIX)
-                    self.begin_pose_inv[2,3] += config.global_shift_default 
+                    self.begin_pose_inv[2,3] += config.global_shift_default # Z 向的偏移 (used to avoid octree boundary marching cubes issues)
             # use the first frame as the reference (identity)
             self.poses_ref[frame_id] = np.matmul(
                 self.begin_pose_inv, self.poses_w[frame_id]
@@ -95,13 +95,13 @@ class LiDARDataset(Dataset):
         if self.used_pc_count > config.pc_count_gpu_limit and not config.continual_learning_reg:
             self.pool_device = "cpu"
             self.to_cpu = True
-            self.sampler.dev = "cpu"
+            self.sampler.device = "cpu"
             print("too many scans, use cpu memory")
         else:
             self.pool_device = config.device
             self.to_cpu = False
 
-        # data pool
+        # data pool 数据池
         self.coord_pool = torch.empty((0, 3), device=self.pool_device, dtype=self.dtype)
         self.sdf_label_pool = torch.empty((0), device=self.pool_device, dtype=self.dtype)
         self.normal_label_pool = torch.empty((0, 3), device=self.pool_device, dtype=self.dtype)
@@ -116,12 +116,12 @@ class LiDARDataset(Dataset):
         pc_radius = self.config.pc_radius
         min_z = self.config.min_z
         max_z = self.config.max_z
-        normal_radius_m = self.config.normal_radius_m
+        normal_radius_m = self.config.normal_radius_m # 和 normal 相关的我们暂时还用不到
         normal_max_nn = self.config.normal_max_nn
         rand_down_r = self.config.rand_down_r
         vox_down_m = self.config.vox_down_m
-        sor_nn = self.config.sor_nn
-        sor_std = self.config.sor_std
+        sor_nn = self.config.sor_nn # nb_neighbors 允许指定要考虑多少个邻居，以便计算给定点的平均距离。
+        sor_std = self.config.sor_std # std_ratio 允许基于跨点云的平均距离的标准偏差来设置阈值级别。此数字越低，过滤器将越具有攻击性。
 
         self.cur_pose_ref = self.poses_ref[frame_id]
 
@@ -182,7 +182,7 @@ class LiDARDataset(Dataset):
         #     self.last_relative_tran = self.cur_pose_ref @ inv(self.last_pose_ref)
         # self.last_pose_ref = self.cur_pose_ref
         
-        frame_origin = self.cur_pose_ref[:3, 3] * self.config.scale  # translation part
+        frame_origin = self.cur_pose_ref[:3, 3] * self.config.scale  # translation part # 当前帧的原点 TODO 没搞明白这个 scale 是用来做什么的？
         frame_origin_torch = torch.tensor(frame_origin, dtype=self.dtype, device=self.pool_device)
 
         # transform to reference frame 
@@ -195,7 +195,7 @@ class LiDARDataset(Dataset):
 
         self.map_bbx = self.map_down_pc.get_axis_aligned_bounding_box()
         # and scale to [-1,1] coordinate system
-        frame_pc_s = frame_pc.scale(self.config.scale, center=(0,0,0))
+        frame_pc_s = frame_pc.scale(self.config.scale, center=(0,0,0)) # scale (float) – The scale parameter that is multiplied to the points/vertices of the geometry.
 
         frame_pc_s_torch = torch.tensor(np.asarray(frame_pc_s.points), dtype=self.dtype, device=self.pool_device)
 

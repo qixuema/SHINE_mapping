@@ -36,10 +36,10 @@ def run_shine_mapping_incremental():
     octree = FeatureOctree(config)
     # initialize the mlp decoder
     geo_mlp = Decoder(config, is_geo_encoder=True)
-    sem_mlp = Decoder(config, is_geo_encoder=False)
+    sem_mlp = Decoder(config, is_geo_encoder=False) # 这个我们没用到
 
-    # Load the decoder model
-    if config.load_model:
+    # Load the decoder model 实际使用的时候，是没有 pre-trained model 的
+    if config.load_model: 
         loaded_model = torch.load(config.model_path)
         geo_mlp.load_state_dict(loaded_model["geo_decoder"])
         print("Pretrained decoder loaded")
@@ -56,18 +56,18 @@ def run_shine_mapping_incremental():
 
     # mesh reconstructor
     mesher = Mesher(config, octree, geo_mlp, sem_mlp)
-    mesher.global_transform = inv(dataset.begin_pose_inv)
+    mesher.global_transform = inv(dataset.begin_pose_inv) # 因为我们随机了一个 Z 向偏移，所以这里要单独对 mesher 的 global_transform 进行修改
 
     # Non-blocking visualizer
     if config.o3d_vis_on:
         vis = MapVisualizer()
 
     # learnable parameters
-    geo_mlp_param = list(geo_mlp.parameters())
+    geo_mlp_param = list(geo_mlp.parameters()) # TODO 怎么就办成 8 个了呢？
     # learnable sigma for differentiable rendering
     sigma_size = torch.nn.Parameter(torch.ones(1, device=dev)*1.0) 
     # fixed sigma for sdf prediction supervised with BCE loss
-    sigma_sigmoid = config.logistic_gaussian_ratio*config.sigma_sigmoid_m*config.scale
+    sigma_sigmoid = config.logistic_gaussian_ratio * config.sigma_sigmoid_m * config.scale
 
     processed_frame = 0
     total_iter = 0
@@ -161,7 +161,8 @@ def run_shine_mapping_incremental():
         T2 = get_time()
         
         # reconstruction by marching cubes. 我觉得他每次都调用 marching cube，感觉好浪费时间
-        if processed_frame == 0 or (processed_frame+1) % config.mesh_freq_frame == 0: # 按照作者默认的参数，他每 5 帧重建一次
+        # if processed_frame == 0 or (processed_frame+1) % config.mesh_freq_frame == 0: # 按照作者默认的参数，他每 5 帧重建一次
+        if processed_frame == 0 or config.end_frame == frame_id:
             # vis_mesh = True 
             # print("Begin reconstruction from implicit mapn")               
             mesh_path = run_path + '/mesh/mesh_frame_' + str(frame_id+1) + ".ply"

@@ -11,23 +11,23 @@ class dataSampler():
     def __init__(self, config: SHINEConfig):
 
         self.config = config
-        self.dev = config.device
+        self.device = config.device
 
 
-    # input and output are all torch tensors
+    # NOTE: input and output are all torch tensors
     def sample(self, points_torch, 
                sensor_origin_torch,
                normal_torch,
                sem_label_torch):
 
-        dev = self.dev
+        device = self.device
 
         world_scale = self.config.scale
         surface_sample_range_scaled = self.config.surface_sample_range_m * self.config.scale
         surface_sample_n = self.config.surface_sample_n
         freespace_sample_n = self.config.free_sample_n
         all_sample_n = surface_sample_n+freespace_sample_n
-        free_min_ratio = self.config.free_sample_begin_ratio
+        free_min_ratio = self.config.free_sample_begin_ratio # TODO 这是干啥的？
         free_sample_end_dist_scaled = self.config.free_sample_end_dist * self.config.scale
         
         sigma_base = self.config.sigma_sigmoid_m * self.config.scale
@@ -40,7 +40,7 @@ class dataSampler():
         
         # Part 1. close-to-surface uniform sampling 
         # uniform sample in the close-to-surface range (+- range)
-        surface_sample_displacement = (torch.rand(point_num*surface_sample_n, 1, device=dev)-0.5)*2*surface_sample_range_scaled 
+        surface_sample_displacement = (torch.rand(point_num*surface_sample_n, 1, device=device)-0.5)*2*surface_sample_range_scaled 
         
         repeated_dist = distances.repeat(surface_sample_n,1)
         surface_sample_dist_ratio = surface_sample_displacement/repeated_dist + 1.0 # 1.0 means on the surface
@@ -52,7 +52,7 @@ class dataSampler():
         free_max_ratio = free_sample_end_dist_scaled / repeated_dist + 1.0
         free_diff_ratio = free_max_ratio - free_min_ratio
 
-        free_sample_dist_ratio = torch.rand(point_num*freespace_sample_n, 1, device=dev)*free_diff_ratio + free_min_ratio
+        free_sample_dist_ratio = torch.rand(point_num*freespace_sample_n, 1, device=device)*free_diff_ratio + free_min_ratio
         
         free_sample_displacement = (free_sample_dist_ratio - 1.0) * repeated_dist
         if sem_label_torch is not None:
@@ -158,6 +158,6 @@ class dataSampler():
 
         space_carving_samples = origins + directions*((depth[mask,0] + steps.reshape(1,-1)*depth_range).reshape(-1,1))
 
-        space_carving_labels = torch.zeros(space_carving_samples.shape[0], device=self.dev) # all as 0 (free)
+        space_carving_labels = torch.zeros(space_carving_samples.shape[0], device=self.device) # all as 0 (free)
 
         return space_carving_samples, space_carving_labels
