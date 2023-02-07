@@ -101,14 +101,14 @@ class FeatureOctree(nn.Module):
     # if incremental_on = True, then we additional store the last frames' feature for regularization based incremental mapping
     def update(self, surface_points, incremental_on = False):
         # [0 1 2 3 ... max_level-1 max_level]
-        spc = kal.ops.conversions.unbatched_pointcloud_to_spc(surface_points, self.max_level) 
-        pyramid = spc.pyramids[0].cpu()
+        spc = kal.ops.conversions.unbatched_pointcloud_to_spc(surface_points, self.max_level) # This function takes as input a single point-cloud - a set of continuous coordinates in 3D, and coverts it into a Structured Point Cloud (SPC)<spc>, a compressed octree representation where the point cloud coordinates are quantized to integer coordinates.
+        pyramid = spc.pyramids[0].cpu() #  pyramids shape: (batch_size, 2, max_level+2)
         for i in range(self.max_level+1): # for each level (top-down)            
             if i < self.free_level_num: # free levels (skip), only need to consider the featured levels
                 continue
             # level storing features (i>=free_level_num)
             nodes = spc.point_hierarchies[pyramid[1, i]:pyramid[1, i+1]]
-            nodes_morton = kal.ops.spc.points_to_morton(nodes).cpu().numpy().tolist() # nodes at certain level
+            nodes_morton = kal.ops.spc.points_to_morton(nodes).cpu().numpy().tolist() # nodes at certain level. Convert (quantized) 3D points to morton codes.
             new_nodes_index = []
             for idx in range(len(nodes_morton)):
                 if nodes_morton[idx] not in self.nodes_lookup_tables[i]:

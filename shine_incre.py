@@ -87,10 +87,11 @@ def run_shine_mapping_incremental():
             freeze_model(geo_mlp) # fixed the decoder
 
         T0 = get_time()
+        
         # preprocess, sample data and update the octree
         # if continual_learning_reg is on, we only keep the current frame's sample in the data pool,
         # otherwise we accumulate the data pool with the current frame's sample
-        dataset.process_frame(frame_id, incremental_on=config.continual_learning_reg)
+        dataset.process_frame(frame_id, incremental_on=config.continual_learning_reg) # TODO 最难理解的就是这部分代码了
         
         octree_feat = list(octree.parameters())
         opt = setup_optimizer(config, octree_feat, geo_mlp_param, None, sigma_size)
@@ -137,7 +138,7 @@ def run_shine_mapping_incremental():
             sem_loss = 0.
             if config.semantic_on:
                 loss_nll = nn.NLLLoss(reduction='mean')
-                sem_loss = loss_nll(sem_pred[::config.sem_label_decimation,:], sem_label[::config.sem_label_decimation])
+                sem_loss = loss_nll(sem_pred[::config.sem_label_decimation,:], sem_label[::config.sem_label_decimation]) # TODO 这行代码有问题
                 cur_loss += config.weight_s * sem_loss
 
             opt.zero_grad(set_to_none=True)
