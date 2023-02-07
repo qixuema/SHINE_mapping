@@ -1,9 +1,9 @@
 setting:
   name: "kitti_batch"
   output_root: "./experiments/"
-  pc_path: "xxx/data/kitti/sequences/00/velodyne"
-  pose_path: "xxx/data/kitti/sequences/00/poses.txt"
-  calib_path: "xxx/data/kitti/sequences/00/calib.txt"
+  pc_path: "./data/kitti/sequences/06/velodyne"
+  pose_path: "./data/kitti/sequences/06/poses.txt"
+  calib_path: "./data/kitti/sequences/06/calib.txt"
   load_model: False
   model_path: "" 
   first_frame_ref: False
@@ -57,5 +57,6 @@ eval:
   save_freq_iters: 10000 # save the model and octree every x iterations
   mesh_freq_frame: 1
   mc_res_m: 0.1 # reconstruction marching cubes resolution
+  mc_mask_on: True
   mc_vis_level: 1
   save_map: False # save the sdf map or not 
