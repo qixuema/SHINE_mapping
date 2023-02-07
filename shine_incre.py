@@ -99,7 +99,7 @@ def run_shine_mapping_incremental():
                 coord.requires_grad_()
             
             # interpolate and concat the hierachical grid features
-            feature = octree.query_feature(coord) 
+            feature = octree.query_feature(coord) # 这里应该是本文的核心吧
             
             # predict the scaled sdf with the feature
             sdf_pred = geo_mlp.sdf(feature)

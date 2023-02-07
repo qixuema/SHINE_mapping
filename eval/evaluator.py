@@ -6,10 +6,14 @@ dataset_name = "maicity_01_"
 
 # ground truth point cloud (or mesh) file
 # (optional masked by the intersection part of all the compared method)
-gt_pcd_path = "xxx/maicity/01/gt_map_pc_mai.ply"
+# gt_pcd_path = "xxx/maicity/01/gt_map_pc_mai.ply"
+gt_pcd_path = "/home/ubuntu/studio/project/shine/SHINE_mapping/experiments/maicity_batch_2022-12-30_15-05-31/map/pc_map_down.ply"
 
-pred_mesh_path = "xxx/ours_xxx.ply"
-method_name = "ours_xxx"
+
+# pred_mesh_path = "/home/ubuntu/studio/project/shine/SHINE_mapping/experiments/maicity_batch_2022-12-30_15-05-31/mesh/mesh_iter_20000.ply"
+pred_mesh_path = "/home/ubuntu/studio/project/shine/SHINE_mapping/experiments/undc/maicity/mai-ori.ply"
+
+method_name = "ours_mai"
 
 # pred_mesh_path = "xxx/baseline/vdb_fusion_xxx.ply"
 # method_name = "vdb_fusion_xxx"
@@ -23,10 +27,12 @@ method_name = "ours_xxx"
 ######################################## Newer College Dataset ########################################
 # dataset_name = "ncd_quad_"
 
-# gt_pcd_path = "xxx/ncd_example/quad/ncd_quad_gt_pc.ply"
+# gt_pcd_path = "/home/ubuntu/studio/project/shine/SHINE_mapping/experiments/ncd_batch_2022-12-30_11-45-18/map/pc_map_down.ply"
 
-# pred_mesh_path = "xxx/ours_xxx.ply"
-# method_name = "ours_xxx"
+# pred_mesh_path = "/home/ubuntu/studio/project/shine/SHINE_mapping/experiments/ncd_batch_2022-12-30_11-45-18/mesh/mesh_iter_20000.ply"
+# pred_mesh_path = "/home/ubuntu/studio/project/shine/SHINE_mapping/experiments/undc/ncd/ncd-reori.ply"
+
+# method_name = "ours_ncd"
 
 # pred_mesh_path = "xxx/baseline/vdb_fusion_xxx.ply"
 # method_name = "vdb_fusion_xxx"
@@ -55,8 +61,13 @@ truncation_dist_com = 2.0
 # truncation_dist_com = 2.0
 
 # evaluation
-eval_metric = eval_mesh(pred_mesh_path, gt_pcd_path, down_sample_res=down_sample_vox, threshold=dist_thre, 
-                        truncation_acc = truncation_dist_acc, truncation_com = truncation_dist_com, gt_bbx_mask_on = True) 
+eval_metric = eval_mesh(pred_mesh_path, 
+                        gt_pcd_path, 
+                        down_sample_res=down_sample_vox, 
+                        threshold=dist_thre, 
+                        truncation_acc = truncation_dist_acc, 
+                        truncation_com = truncation_dist_com, 
+                        gt_bbx_mask_on = True) 
 
 print(eval_metric)
 
