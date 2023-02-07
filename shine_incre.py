@@ -162,8 +162,7 @@ def run_shine_mapping_incremental():
         T2 = get_time()
         
         # reconstruction by marching cubes. 我觉得他每 5 帧调用一次 marching cube，感觉好浪费时间
-        # if processed_frame == 0 or (processed_frame+1) % config.mesh_freq_frame == 0: # 按照作者默认的参数，他每 5 帧重建一次
-        if processed_frame == 0 or config.end_frame == frame_id:
+        if processed_frame == 0 or (processed_frame+1) % config.mesh_freq_frame == 0: # 按照作者默认的参数，他每 5 帧重建一次
             vis_mesh = True 
             # print("Begin reconstruction from implicit mapn")               
             mesh_path = run_path + '/mesh/mesh_frame_' + str(frame_id+1) + ".ply"

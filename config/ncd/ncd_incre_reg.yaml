@@ -52,7 +52,6 @@ optimizer:
   learning_rate: 0.01
   weight_decay: 1e-7 # l2 regularization
 eval:
-  o3d_vis_on: False
   wandb_vis_on: False # log to wandb or not
   o3d_vis_on: True # visualize the mapping or not
   vis_freq_iters: 0 
