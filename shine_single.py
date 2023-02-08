@@ -1,24 +1,17 @@
 import sys
-import wandb
-import numpy as np
 from numpy.linalg import inv, norm
 from tqdm import tqdm
-import wandb
 import torch
-import torch.nn as nn
-import torch.optim as optim
-
 
 from utils.config import SHINEConfig
 from utils.tools import *
 from utils.loss import *
 from utils.mesher import Mesher
-from utils.visualizer import MapVisualizer, random_color_table
 from model.feature_octree import FeatureOctree
 from model.decoder import Decoder
 from dataset.lidar_dataset import LiDARDataset
 
-# 我理解的就是离线重建，因为每一帧点云的pose均已知；
+
 def run_shine_mapping_single():
         
     config = SHINEConfig()
@@ -32,34 +25,38 @@ def run_shine_mapping_single():
     run_path = setup_experiment_and_return_run_path(config)
     dev = config.device
 
-    # initialize the mlp decoder
-    geo_mlp = Decoder(config, is_geo_encoder=True)
-    
-    # initialize the feature octree
-    octree = FeatureOctree(config)
-    # dataset
-    dataset = LiDARDataset(config, octree)
-
-    mesher = Mesher(config, octree, geo_mlp, None)
-    mesher.global_transform = inv(dataset.begin_pose_inv)
-
-    # Visualizer on
-    if config.o3d_vis_on:
-        vis = MapVisualizer()
-    
     # for each frame
     print("Load, preprocess and sample data")
     
-    for frame_id in tqdm(range(dataset.total_frame_count)):
-        if (frame_id < config.begin_frame or frame_id > config.end_frame or \
-            frame_id % config.every_frame != 0): 
+    for frame_id in range(config.begin_frame, config.end_frame):
+        if (frame_id % config.every_frame != 0): 
             continue
         
-        t0 = get_time()  
+        print("processing frame id = ", frame_id)
+        
+        # initialize the mlp decoder
+        geo_mlp = Decoder(config, is_geo_encoder=True)
+    
+        # initialize the feature octree
+        octree = FeatureOctree(config)
+        
+        # dataset
+        dataset = LiDARDataset(config, octree)
+        
+        mesher = Mesher(config, octree, geo_mlp, None)
+        mesher.global_transform = inv(dataset.begin_pose_inv)
+        
+        t0 = get_time()
         # preprocess, sample data and update the octree
         dataset.process_single_frame(frame_id)
         t1 = get_time()
         print("data preprocessing and sampling time (s): %.3f" %(t1 - t0))
+        
+        # 保存点云
+        save_pc = False
+        if save_pc:
+            pc_map_path = run_path + '/map/pc_map_down.ply'
+            dataset.write_merged_pc(pc_map_path)
 
         # learnable parameters
         octree_feat = list(octree.parameters())
@@ -68,13 +65,7 @@ def run_shine_mapping_single():
         # learnable sigma for differentiable rendering
         sigma_size = torch.nn.Parameter(torch.ones(1, device=dev)*1.0) 
         # fixed sigma for sdf prediction supervised with BCE loss
-        sigma_sigmoid = config.logistic_gaussian_ratio*config.sigma_sigmoid_m*config.scale
-        
-        # 保存点云
-        save_pc = False
-        if save_pc:
-            pc_map_path = run_path + '/map/pc_map_down.ply'
-            dataset.write_merged_pc(pc_map_path)
+        sigma_sigmoid = config.logistic_gaussian_ratio * config.sigma_sigmoid_m * config.scale
 
         # initialize the optimizer
         opt = setup_optimizer(config, octree_feat, geo_mlp_param, None, sigma_size)
@@ -89,10 +80,8 @@ def run_shine_mapping_single():
             step_lr_decay(opt, cur_base_lr, iter, config.lr_decay_step, config.lr_iters_reduce_ratio)
             
             # load batch data (avoid using dataloader because the data are already in gpu, memory vs speed)
-            if config.ray_loss: # loss computed based on each ray   
-                coord, sample_depth, ray_depth, normal_label, sem_label, weight = dataset.get_batch()
-            else: # loss computed based on each point sample  
-                coord, sdf_label, normal_label, sem_label, weight = dataset.get_batch()
+            # loss computed based on each point sample  
+            coord, sdf_label, normal_label, _, weight = dataset.get_batch()
 
             if config.normal_loss_on or config.ekional_loss_on:
                 coord.requires_grad_(True)
@@ -125,7 +114,6 @@ def run_shine_mapping_single():
                 normal_loss = (normal_diff[surface_mask].abs()).norm(2, dim=1).mean() 
                 cur_loss += config.weight_n * normal_loss
 
-
             opt.zero_grad(set_to_none=True)
             cur_loss.backward()
             opt.step()
@@ -133,17 +121,10 @@ def run_shine_mapping_single():
             # reconstruction by marching cubes
             if (((iter+1) % config.vis_freq_iters) == 0 and iter > 0): 
                 print("Begin mesh reconstruction from the implicit map")               
-                mesh_path = run_path + '/mesh/mesh_iter_' + str(iter+1) + ".ply"
-                map_path = run_path + '/map/sdf_map_iter_' + str(iter+1) + ".ply"
+                mesh_path = run_path + '/mesh/mesh_iter_' + str(iter+1) + "_frameID_" + str(frame_id) + ".ply"
 
-                cur_mesh = mesher.recon_bbx_mesh(dataset.map_bbx, config.mc_res_m, mesh_path, map_path, config.save_map, config.semantic_on)
-                
-                if config.o3d_vis_on:
-                    cur_mesh.transform(dataset.begin_pose_inv)
-                    vis.update_mesh(cur_mesh)
-        
-        octree.clear_temp()
-
+                mesher.recon_bbx_mesh(dataset.map_bbx, config.mc_res_m, mesh_path, None, config.save_map, config.semantic_on)
+    
 
 if __name__ == "__main__":
     run_shine_mapping_single()
