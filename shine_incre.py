@@ -92,7 +92,7 @@ def run_shine_mapping_incremental():
         # if continual_learning_reg is on, we only keep the current frame's sample in the data pool,
         # otherwise we accumulate the data pool with the current frame's sample
         dataset.process_frame(frame_id, incremental_on=config.continual_learning_reg) # TODO 最难理解的就是这部分代码了
-        
+
         octree_feat = list(octree.parameters())
         opt = setup_optimizer(config, octree_feat, geo_mlp_param, None, sigma_size)
         octree.print_detail()

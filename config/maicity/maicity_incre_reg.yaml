@@ -58,6 +58,6 @@ eval:
   save_freq_iters: 0 # save the model and octree every x iterations
   mesh_freq_frame: 20 # reconstruct the mesh every x frames
   mc_res_m: 0.2 # reconstruction marching cubes resolution
-  mc_with_octree: False # querying sdf in the map bbx
+  mc_with_octree: True # querying sdf in the map bbx
   mc_vis_level: 2
   save_map: False # save the sdf map or not
