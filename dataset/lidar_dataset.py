@@ -261,8 +261,6 @@ class LiDARDataset(Dataset):
         max_z = self.config.max_z
             
         vox_down_m = self.config.vox_down_m
-        # sor_nn = self.config.sor_nn # nb_neighbors 允许指定要考虑多少个邻居，以便计算给定点的平均距离。
-        # sor_std = self.config.sor_std # std_ratio 允许基于跨点云的平均距离的标准偏差来设置阈值级别。此数字越低，过滤器将越具有攻击性。
 
         self.cur_pose_ref = self.poses_ref[0]
 
@@ -275,27 +273,10 @@ class LiDARDataset(Dataset):
         bbx_max = np.array([pc_radius, pc_radius, max_z])
         bbx = o3d.geometry.AxisAlignedBoundingBox(bbx_min, bbx_max)
         frame_pc = frame_pc.crop(bbx)
-
-        # point cloud downsampling
-        # voxel downsampling
         frame_pc = frame_pc.voxel_down_sample(voxel_size=vox_down_m)
 
-        # tracking here: only for incremental version
-        # adjust the pose to minimize the accumulated distance of frame_pc's point cloud in current sdf map
-        # just a simple optimization problem
-        # turn on tracking by uncommenting here
-        # if not self.octree.is_empty() and frame_id > 10:
-        #     self.cur_pose_init_guess = self.last_pose_ref
-        #     # self.cur_pose_init_guess = self.last_pose_ref @ self.last_relative_tran 
-        #     self.cur_pose_ref = self.tracker.tracking(frame_pc, self.cur_pose_init_guess) # refine th initial guess
-        #     self.last_relative_tran = self.cur_pose_ref @ inv(self.last_pose_ref)
-        # self.last_pose_ref = self.cur_pose_ref
-        
         frame_origin = self.cur_pose_ref[:3, 3] * self.config.scale  # translation part # 当前帧的原点 TODO 没搞明白这个 scale 是用来做什么的？
         frame_origin_torch = torch.tensor(frame_origin, dtype=self.dtype, device=self.pool_device)
-
-        # transform to reference frame 
-        # frame_pc = frame_pc.transform(self.cur_pose_ref)
         
         # make a backup for merging into the map point cloud
         frame_pc_clone = copy.deepcopy(frame_pc)
@@ -317,15 +298,16 @@ class LiDARDataset(Dataset):
         # update feature octree
         # update with the sampled surface points
         self.octree.update(coord[weight > 0, :].to(self.device), incremental_on)
-
-        # get the data pool ready for training
-        # ray-wise samples order
    
         self.coord_pool = torch.cat((self.coord_pool, coord.to(self.pool_device)), 0)            
         self.weight_pool = torch.cat((self.weight_pool, weight.to(self.pool_device)), 0)
 
         self.sdf_label_pool = torch.cat((self.sdf_label_pool, sdf_label.to(self.pool_device)), 0)
         
+        self.normal_label_pool = None
+        self.sem_label_pool = None
+        
+
     def read_point_cloud(self, filename: str):
         # read point cloud from either (*.ply, *.pcd) or (kitti *.bin) format
         if ".bin" in filename:
