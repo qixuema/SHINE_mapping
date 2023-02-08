@@ -116,8 +116,10 @@ class LiDARDataset(Dataset):
         pc_radius = self.config.pc_radius
         min_z = self.config.min_z
         max_z = self.config.max_z
+        
         normal_radius_m = self.config.normal_radius_m # 和 normal 相关的我们暂时还用不到
         normal_max_nn = self.config.normal_max_nn
+        
         rand_down_r = self.config.rand_down_r
         vox_down_m = self.config.vox_down_m
         sor_nn = self.config.sor_nn # nb_neighbors 允许指定要考虑多少个邻居，以便计算给定点的平均距离。
@@ -128,11 +130,12 @@ class LiDARDataset(Dataset):
         # load point cloud (support *pcd, *ply and kitti *bin format)
         frame_filename = os.path.join(self.config.pc_path, self.pc_filenames[frame_id])
         
-        if not self.config.semantic_on:
-            frame_pc = self.read_point_cloud(frame_filename)
-        else:
+        if self.config.semantic_on:
             label_filename = os.path.join(self.config.label_path, self.pc_filenames[frame_id].replace('bin','label'))
-            frame_pc = self.read_semantic_point_label(frame_filename, label_filename)
+            frame_pc = self.read_semantic_point_label(frame_filename, label_filename)        
+        else:
+            frame_pc = self.read_point_cloud(frame_filename)
+
 
         # block filter: crop the point clouds into a cube
         bbx_min = np.array([-pc_radius, -pc_radius, min_z])
@@ -210,9 +213,8 @@ class LiDARDataset(Dataset):
         # print("Frame point cloud count:", frame_pc_s_torch.shape[0])
 
         # sampling the points
-        (coord, sdf_label, normal_label, sem_label, weight, sample_depth, ray_depth) = \
-            self.sampler.sample(frame_pc_s_torch, frame_origin_torch, \
-            frame_normal_torch, frame_label_torch)
+        (coord, sdf_label, normal_label, sem_label, weight, sample_depth, ray_depth) = self.sampler.sample(
+            frame_pc_s_torch, frame_origin_torch, frame_normal_torch, frame_label_torch) # TODO 这部分代码也挺难理解的
 
         # update feature octree
         if self.config.octree_from_surface_samples:
@@ -251,7 +253,79 @@ class LiDARDataset(Dataset):
                 self.sem_label_pool = torch.cat((self.sem_label_pool, sem_label.to(self.pool_device)), 0)
             else:
                 self.sem_label_pool = None
+                
+    def process_single_frame(self, frame_id, incremental_on = False):
 
+        pc_radius = self.config.pc_radius
+        min_z = self.config.min_z
+        max_z = self.config.max_z
+            
+        vox_down_m = self.config.vox_down_m
+        # sor_nn = self.config.sor_nn # nb_neighbors 允许指定要考虑多少个邻居，以便计算给定点的平均距离。
+        # sor_std = self.config.sor_std # std_ratio 允许基于跨点云的平均距离的标准偏差来设置阈值级别。此数字越低，过滤器将越具有攻击性。
+
+        self.cur_pose_ref = self.poses_ref[0]
+
+        # load point cloud (support *pcd, *ply and kitti *bin format)
+        frame_filename = os.path.join(self.config.pc_path, self.pc_filenames[frame_id])
+        frame_pc = self.read_point_cloud(frame_filename)
+
+        # block filter: crop the point clouds into a cube
+        bbx_min = np.array([-pc_radius, -pc_radius, min_z])
+        bbx_max = np.array([pc_radius, pc_radius, max_z])
+        bbx = o3d.geometry.AxisAlignedBoundingBox(bbx_min, bbx_max)
+        frame_pc = frame_pc.crop(bbx)
+
+        # point cloud downsampling
+        # voxel downsampling
+        frame_pc = frame_pc.voxel_down_sample(voxel_size=vox_down_m)
+
+        # tracking here: only for incremental version
+        # adjust the pose to minimize the accumulated distance of frame_pc's point cloud in current sdf map
+        # just a simple optimization problem
+        # turn on tracking by uncommenting here
+        # if not self.octree.is_empty() and frame_id > 10:
+        #     self.cur_pose_init_guess = self.last_pose_ref
+        #     # self.cur_pose_init_guess = self.last_pose_ref @ self.last_relative_tran 
+        #     self.cur_pose_ref = self.tracker.tracking(frame_pc, self.cur_pose_init_guess) # refine th initial guess
+        #     self.last_relative_tran = self.cur_pose_ref @ inv(self.last_pose_ref)
+        # self.last_pose_ref = self.cur_pose_ref
+        
+        frame_origin = self.cur_pose_ref[:3, 3] * self.config.scale  # translation part # 当前帧的原点 TODO 没搞明白这个 scale 是用来做什么的？
+        frame_origin_torch = torch.tensor(frame_origin, dtype=self.dtype, device=self.pool_device)
+
+        # transform to reference frame 
+        # frame_pc = frame_pc.transform(self.cur_pose_ref)
+        
+        # make a backup for merging into the map point cloud
+        frame_pc_clone = copy.deepcopy(frame_pc)
+        frame_pc_clone = frame_pc_clone.voxel_down_sample(voxel_size=self.config.map_vox_down_m) # for smaller memory cost
+        self.map_down_pc += frame_pc_clone
+        self.cur_frame_pc = frame_pc_clone
+
+        self.map_bbx = self.map_down_pc.get_axis_aligned_bounding_box()
+        # and scale to [-1,1] coordinate system
+        frame_pc_scale = frame_pc.scale(self.config.scale, center=(0,0,0)) # scale (float) – The scale parameter that is multiplied to the points/vertices of the geometry.
+        frame_pc_scale_torch = torch.tensor(np.asarray(frame_pc_scale.points), dtype=self.dtype, device=self.pool_device)
+
+        # print("Frame point cloud count:", frame_pc_s_torch.shape[0])
+
+        # sampling the points
+        (coord, sdf_label, _, _, weight, _, _) = self.sampler.sample(
+            frame_pc_scale_torch, frame_origin_torch, None, None) # TODO 这部分代码也挺难理解的
+
+        # update feature octree
+        # update with the sampled surface points
+        self.octree.update(coord[weight > 0, :].to(self.device), incremental_on)
+
+        # get the data pool ready for training
+        # ray-wise samples order
+   
+        self.coord_pool = torch.cat((self.coord_pool, coord.to(self.pool_device)), 0)            
+        self.weight_pool = torch.cat((self.weight_pool, weight.to(self.pool_device)), 0)
+
+        self.sdf_label_pool = torch.cat((self.sdf_label_pool, sdf_label.to(self.pool_device)), 0)
+        
     def read_point_cloud(self, filename: str):
         # read point cloud from either (*.ply, *.pcd) or (kitti *.bin) format
         if ".bin" in filename:
