@@ -1,5 +1,5 @@
 setting:
-  name: "maicity_batch"
+  name: "maicity_single"
   output_root: "./experiments/"
   pc_path: "./data/mai_city/ply/sequences/01/velodyne"
   pose_path: "./data/mai_city/ply/sequences/01/poses.txt"
@@ -7,8 +7,8 @@ setting:
   load_model: False
   model_path: "" 
   first_frame_ref: False
-  begin_frame: 0
-  end_frame: 20
+  begin_frame: 19
+  end_frame: 100
   every_frame: 1 # 1 means does not skip
   device: "cuda"
   gpu_id: "0"
@@ -47,15 +47,15 @@ continual:
   continual_learning_reg: False
   lambda_forget: 0
 optimizer:
-  iters: 20000
+  iters: 50
   batch_size: 4096
   learning_rate: 0.01
   weight_decay: 1e-7 # l2 regularization
 eval:
   wandb_vis_on: False # log to wandb or not
-  o3d_vis_on: True # visualize the mapping or not
-  vis_freq_iters: 20000 # reconstruct the mesh every x iterations
-  save_freq_iters: 20000 # save the model and octree every x iterations
+  o3d_vis_on: False # visualize the mapping or not
+  vis_freq_iters: 50 # reconstruct the mesh every x iterations
+  save_freq_iters: 50 # save the model and octree every x iterations
   mesh_freq_frame: 1 
   mc_res_m: 0.1 # reconstruction marching cubes resolution
   mc_with_octree: False # querying sdf in the map bbx
